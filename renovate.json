@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Org-level Renovate config — extend from this in each repo: {\"extends\": [\"local>onvexai/.github\"]}",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "labels": ["dependencies", "renovate"],
+  "schedule": ["before 6am on Monday"],
+  "packageRules": [
+    {
+      "description": "Auto-merge patch updates for all ecosystems",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group all GitHub Actions digest updates into one PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions digests",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group Python dependencies",
+      "matchManagers": ["pip_requirements", "pipenv", "poetry", "uv"],
+      "groupName": "Python dependencies"
+    },
+    {
+      "description": "Group npm/Node dependencies",
+      "matchManagers": ["npm", "yarn"],
+      "groupName": "npm dependencies"
+    },
+    {
+      "description": "Group Rust dependencies",
+      "matchManagers": ["cargo"],
+      "groupName": "Rust dependencies"
+    }
+  ]
+}

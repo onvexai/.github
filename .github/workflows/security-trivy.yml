@@ -56,3 +56,42 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
           category: trivy
+
+  trufflehog:
+    name: TruffleHog secret scan
+    timeout-minutes: 10
+    needs: check-archived
+    if: ${{ needs.check-archived.outputs.is-archived == 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+
+      # Deliberately NOT trufflesecurity/trufflehog@... : that action scans git HISTORY,
+      # and on a `schedule` event it scans ALL of it. Across many repos that resurfaces
+      # long-rotated historical secrets as recurring noise. Scanning the checked-out tree
+      # matches what the local pre-commit hook does -- current content, not history.
+      # Version AND checksum are pinned; the action's own `version` input defaults to
+      # "latest", which would be an unpinned moving target.
+      - name: Install TruffleHog 3.96.0 (checksum-pinned)
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          curl -sSfL --retry 3 -o "$workdir/th.tar.gz" \
+            https://github.com/trufflesecurity/trufflehog/releases/download/v3.96.0/trufflehog_3.96.0_linux_amd64.tar.gz
+          echo "7105f1cd6577f058a9e39d0578f1a99c8a1e481e4d3512cd8a09acfe22a0fdc0  $workdir/th.tar.gz" | sha256sum -c -
+          tar xzf "$workdir/th.tar.gz" -C "$workdir" trufflehog
+          sudo install -m 0755 "$workdir/trufflehog" /usr/local/bin/trufflehog
+
+      # Visibility pass: full recall, never fails the build. Unverified matches carry
+      # real false-positive risk, so they are reported for triage rather than gating.
+      - name: TruffleHog - report all findings
+        continue-on-error: true
+        run: trufflehog filesystem . --no-update --results=verified,unknown,unverified
+
+      # Gate: a VERIFIED secret is one TruffleHog confirmed live against its provider.
+      # That is an incident, not a lint warning -- fail the build. Neither Semgrep
+      # (p/secrets) nor Trivy detects Anthropic sk-ant keys; TruffleHog is the only
+      # scanner here that does, which is the gap this job exists to close.
+      - name: TruffleHog - fail on verified secrets
+        run: trufflehog filesystem . --no-update --results=verified --fail

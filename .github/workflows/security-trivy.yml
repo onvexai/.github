@@ -93,5 +93,23 @@ jobs:
       # That is an incident, not a lint warning -- fail the build. Neither Semgrep
       # (p/secrets) nor Trivy detects Anthropic sk-ant keys; TruffleHog is the only
       # scanner here that does, which is the gap this job exists to close.
+      #
+      # Lob is excluded from THE GATE ONLY. Its detector matches any 40-character
+      # string and reports it VERIFIED, so ordinary source text trips it -- Python
+      # test names are routinely exactly 40 chars:
+      #
+      #     test_latest_dump_returns_none_when_empty     (40)
+      #     test_prunes_every_database_independently     (40)
+      #
+      # On cfdude/market-intelligence this produced 92 verified findings and blocked
+      # a legitimate PR (2026-08-06). A full git-history scan of that repo returned
+      # 103 verified findings, 100% Lob and 0% everything else; one flagged file was
+      # a lobbying-data test generator, not a Lob integration. A gate that fails on
+      # test naming trains people to bypass it, which costs more than the detector
+      # is worth.
+      #
+      # The visibility pass above still reports Lob at full recall, so nothing is
+      # hidden -- it just no longer fails builds. Drop this exclusion if any repo
+      # using this workflow actually integrates Lob (lob.com, direct mail).
       - name: TruffleHog - fail on verified secrets
-        run: trufflehog filesystem . --no-update --results=verified --fail
+        run: trufflehog filesystem . --no-update --results=verified --fail --exclude-detectors=Lob
